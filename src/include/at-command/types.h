@@ -2,6 +2,7 @@
 #define AT_COMMAND_TYPES_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define AT_EVT_OK         0x01U
 #define AT_EVT_ERROR      0x02U
