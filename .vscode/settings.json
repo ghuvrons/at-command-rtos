@@ -1,0 +1,22 @@
+{
+    "files.associations": {
+        "rectangle.h": "c",
+        "circle.h": "c",
+        "stdio.h": "c",
+        "stdlib.h": "c",
+        "at-command.h": "c",
+        "cstdio": "c",
+        "string.h": "c",
+        "type_traits": "c",
+        "config.h": "c",
+        "cstdlib": "c",
+        "utils.h": "c"
+    },
+    "makefile.launchConfigurations": [
+        {
+            "cwd": "/home/janoko/Project/C/at-command/build",
+            "binaryPath": "/home/janoko/Project/C/at-command/build/main",
+            "binaryArgs": []
+        }
+    ]
+}
