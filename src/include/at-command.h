@@ -43,15 +43,15 @@ typedef struct {
 AT_Status_t AT_Init(AT_HandlerTypeDef*, AT_Config_t*);
 void AT_Process(AT_HandlerTypeDef*);
 
-AT_Status_t AT_On(AT_HandlerTypeDef*, AT_Command_t, 
-                  void *app,
-                  uint8_t respNb, AT_Data_t *respData, 
-                  AT_EH_Callback_t callback);
+AT_Status_t AT_On(AT_HandlerTypeDef*, AT_Command_t, void *app,
+                  uint8_t respNb, AT_Data_t *,
+                  AT_EH_Callback_t);
 
-AT_Status_t AT_ReadIntoBufferOn(AT_HandlerTypeDef*, AT_Command_t,
-                                void *app,
-                                uint8_t respNb, AT_Data_t *respData,
-                                AT_EH_CallbackBufReadTo_t callback);
+AT_Status_t AT_ReadlineOn(AT_HandlerTypeDef*, AT_Command_t, void *app, AT_EH_CallbackReadline_t);
+
+AT_Status_t AT_ReadIntoBufferOn(AT_HandlerTypeDef*, AT_Command_t, void *app,
+                                uint8_t respNb, AT_Data_t *,
+                                AT_EH_CallbackBufReadTo_t);
 
 AT_Status_t AT_WaitStringFlag(AT_HandlerTypeDef*, const char *str, uint8_t len);
 AT_Status_t AT_Command(AT_HandlerTypeDef*, AT_Command_t, 

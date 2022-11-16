@@ -46,6 +46,7 @@ struct AT_BufferReadTo {
 };
 
 typedef void (*AT_EH_Callback_t)(void *app, AT_Data_t*);
+typedef void (*AT_EH_CallbackReadline_t)(void *app, uint8_t*, uint16_t bufferSize);
 typedef struct AT_BufferReadTo (*AT_EH_CallbackBufReadTo_t)(void *app, AT_Data_t*);
 
 typedef struct AT_EventHandler_t {
@@ -53,6 +54,7 @@ typedef struct AT_EventHandler_t {
   AT_CmdResp_t  cmdResp;
 
   AT_EH_Callback_t callback;
+  AT_EH_CallbackReadline_t callbackReadline;
   AT_EH_CallbackBufReadTo_t callbackBufferReadTo;
   struct AT_EventHandler_t *next;
 } AT_EventHandler_t;

@@ -140,6 +140,9 @@ void AT_Process(AT_HandlerTypeDef *hat)
 
         if (handlers->callback != 0)
           handlers->callback(handlers->app, handlers->cmdResp.resp);
+        else if (handlers->callbackReadline != 0) {
+          handlers->callbackReadline(handlers->app, hat->bufferResp, hat->bufferRespLen);
+        }
         else if (handlers->callbackBufferReadTo != 0) {
           struct AT_BufferReadTo recv = handlers->callbackBufferReadTo(handlers->app,
                                                                        handlers->cmdResp.resp);
@@ -158,8 +161,7 @@ void AT_Process(AT_HandlerTypeDef *hat)
 }
 
 
-AT_Status_t AT_On(AT_HandlerTypeDef *hat, AT_Command_t cmd,
-                  void *app,
+AT_Status_t AT_On(AT_HandlerTypeDef *hat, AT_Command_t cmd, void *app,
                   uint8_t respNb, AT_Data_t *respData,
                   AT_EH_Callback_t cb)
 {
@@ -172,6 +174,7 @@ AT_Status_t AT_On(AT_HandlerTypeDef *hat, AT_Command_t cmd,
   newHandlers->cmdResp.respNb = respNb;
   newHandlers->cmdResp.resp = respData;
   newHandlers->callback = cb;
+  newHandlers->callbackReadline = 0;
   newHandlers->callbackBufferReadTo = 0;
   newHandlers->next = 0;
 
@@ -189,8 +192,36 @@ AT_Status_t AT_On(AT_HandlerTypeDef *hat, AT_Command_t cmd,
 }
 
 
-AT_Status_t AT_ReadIntoBufferOn(AT_HandlerTypeDef *hat, AT_Command_t cmd,
-                                void *app,
+AT_Status_t AT_ReadlineOn(AT_HandlerTypeDef *hat, AT_Command_t cmd, void *app, AT_EH_CallbackReadline_t cb)
+{
+  AT_EventHandler_t *handlerPtr;
+  AT_EventHandler_t *newHandlers = (AT_EventHandler_t*) malloc(sizeof(AT_EventHandler_t));
+
+  newHandlers->app = app;
+  newHandlers->cmdResp.cmdLen = strlen(cmd);
+  newHandlers->cmdResp.cmd = cmd;
+  newHandlers->cmdResp.respNb = 0;
+  newHandlers->cmdResp.resp = 0;
+  newHandlers->callback = 0;
+  newHandlers->callbackReadline = cb;
+  newHandlers->callbackBufferReadTo = 0;
+  newHandlers->next = 0;
+
+  if (hat->handlers == 0) {
+    hat->handlers = newHandlers;
+  } else {
+    handlerPtr = hat->handlers;
+    while (handlerPtr->next != 0) {
+      handlerPtr = handlerPtr->next;
+    }
+    handlerPtr->next = newHandlers;
+  }
+
+  return AT_OK;
+}
+
+
+AT_Status_t AT_ReadIntoBufferOn(AT_HandlerTypeDef *hat, AT_Command_t cmd, void *app,
                                 uint8_t respNb, AT_Data_t *respData,
                                 AT_EH_CallbackBufReadTo_t cb)
 {
@@ -203,6 +234,7 @@ AT_Status_t AT_ReadIntoBufferOn(AT_HandlerTypeDef *hat, AT_Command_t cmd,
   newHandlers->cmdResp.respNb = respNb;
   newHandlers->cmdResp.resp = respData;
   newHandlers->callback = 0;
+  newHandlers->callbackReadline = 0;
   newHandlers->callbackBufferReadTo = cb;
   newHandlers->next = 0;
 
