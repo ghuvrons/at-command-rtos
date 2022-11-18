@@ -64,7 +64,7 @@ const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
   uint8_t isParsing = 0;
   uint8_t isInStr = 0;
   uint8_t isBinary = 0;
-  char *strOutput = 0;
+  uint8_t *strOutput = 0;
   size_t outputSZ = 0;
 
   if (respStr == 0) return 0;
@@ -102,15 +102,18 @@ const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
 
         if (isInStr) {
           data->type = AT_STRING;
-          strOutput = data->value.string;
+          data->value.string = (const char*)data->ptr;
+          strOutput = data->ptr;
           outputSZ = data->size;
         } else {
           if (*respStr >= '0' && *respStr <= '9') {
             data->type = AT_NUMBER;
             data->value.number = atoi((char*)respStr);
-          } else if (data->type == AT_STRING) {
+          } else if (data->ptr != 0) {
+            data->type = AT_STRING;
             isBinary = 1;
-            strOutput = data->value.string;
+            data->value.string = (const char*)data->ptr;
+            strOutput = data->ptr;
             outputSZ = data->size;
           }
         }

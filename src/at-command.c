@@ -146,7 +146,20 @@ void AT_Process(AT_HandlerTypeDef *hat)
         else if (handlers->callbackBufferReadTo != 0) {
           struct AT_BufferReadTo recv = handlers->callbackBufferReadTo(handlers->app,
                                                                        handlers->cmdResp.resp);
-          hat->serial.readinto(recv.buffer, recv.length);
+
+          if (recv.buffer != 0 && recv.bufferSize > 0) {
+            recv.readLen -= hat->serial.readinto(recv.buffer,
+                                                 (recv.bufferSize >= recv.readLen)?
+                                                     recv.readLen:
+                                                     recv.bufferSize);
+          }
+
+          while (recv.readLen > 0) {
+            recv.readLen -= hat->serial.read(hat->bufferResp,
+                                             (AT_BUF_RESP_SZ >= recv.readLen)?
+                                                 recv.readLen:
+                                                 AT_BUF_RESP_SZ);
+          }
         }
       }
 
