@@ -18,6 +18,7 @@ typedef enum {
 typedef enum {
   AT_NUMBER,
   AT_STRING,
+  AT_BYTES,
   AT_HEX,
 } AT_DataType_t;
 
@@ -66,7 +67,8 @@ typedef struct AT_EventHandler_t {
 #define AT_Number(n)        {.type = AT_NUMBER, .value.number = (n),   .ptr=0,     .size=0,}
 #define AT_String(str)      {.type = AT_STRING, .value.string = (str), .ptr=0,     .size=0,}
 #define AT_Buffer(buf, len) {.type = AT_STRING, .value.string = 0,     .ptr=(buf), .size=(len),}
-#define AT_Hex(b)           {.type = AT_HEX,    .value.bytes  = (b),   .ptr=(b), .size=sizeof((b)),}
+#define AT_Bytes(b, len)    {.type = AT_BYTES,  .value.string = (b),   .ptr=0,     .size=(len),}
+#define AT_Hex(b)           {.type = AT_HEX,    .value.bytes  = (b),   .ptr=(b),   .size=sizeof((b)),}
 
 #define AT_DataSetNumber(data, n)         {(data)->type = AT_NUMBER; (data)->value.number = (n);}
 #define AT_DataSetString(data, str)       {(data)->type = AT_STRING; (data)->value.string = (str);}

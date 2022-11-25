@@ -40,6 +40,12 @@ uint16_t AT_WriteCommand(uint8_t *buffer, uint16_t bufferSz,
       writeLen    += tmpWriteLen;
       break;
     
+    case AT_BYTES:
+      tmpWriteLen  = snprintf((char*)buffer, bufferSz, "%s", params->value.string);
+      buffer      += tmpWriteLen;
+      writeLen    += tmpWriteLen;
+      break;
+
     default: return 0;
     }
 
@@ -61,11 +67,12 @@ end:
 
 const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
 {
-  uint8_t isParsing = 0;
-  uint8_t isInStr = 0;
-  uint8_t isBinary = 0;
-  uint8_t *strOutput = 0;
-  size_t outputSZ = 0;
+  uint8_t isParsing   = 0;
+  uint8_t isInStr     = 0;
+  uint8_t isInBracket = 0;
+  uint8_t isBinary    = 0;
+  uint8_t *strOutput  = 0;
+  size_t outputSZ     = 0;
 
   if (respStr == 0) return 0;
 
@@ -73,13 +80,15 @@ const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
     if (*respStr == 0) return 0;
     else if (*respStr == '\r') {
       if (isBinary) {
+        if (isParsing && strOutput != 0)
+          *strOutput = 0;
         strOutput = 0;
         break;
       }
       else if (!isInStr) return 0;
     }
 
-    else if (*respStr == ',' && !isInStr) {
+    else if (*respStr == ',' && !isInStr && !isInBracket) {
       respStr++;
       break;
     }
@@ -87,7 +96,8 @@ const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
     else if (*respStr == '\"') {
       if (isInStr) {
         if (isParsing && strOutput != 0)
-          strOutput = 0;
+          *strOutput = 0;
+        strOutput = 0;
         isInStr = 0;
         isParsing = 0;
       }
@@ -118,6 +128,14 @@ const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
           }
         }
       }
+
+      if (*respStr == '(' && !isInStr) {
+        isInBracket = 1;
+      }
+      else if (*respStr == ')' && !isInStr) {
+        isInBracket = 0;
+      }
+
       if ((isInStr || isBinary) && outputSZ != 0 && strOutput != 0) {
         *strOutput = (char) *respStr;
         strOutput++;
