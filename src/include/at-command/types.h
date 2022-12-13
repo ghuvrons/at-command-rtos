@@ -4,10 +4,11 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define AT_EVT_OK         0x01U
-#define AT_EVT_ERROR      0x02U
-#define AT_EVT_CMD_RESP   0x04U
-#define AT_EVT_BYTES_FLAG 0x08U
+#define AT_EVT_OK               0x01U
+#define AT_EVT_ERROR            0x02U
+#define AT_EVT_CMD_RESP         0x04U
+#define AT_EVT_BYTES_FLAG_START 0x08U
+#define AT_EVT_BYTES_FLAG_END   0x10U
 
 typedef enum {
   AT_OK,
@@ -38,15 +39,20 @@ typedef struct {
 typedef struct {
     uint8_t       cmdLen;
     AT_Command_t  cmd;
+    uint8_t       respListSize;
     uint8_t       respNb;
     AT_Data_t     *resp;
+    uint8_t       error;
+
+    // for command readinto
+    void      *buffer;
+    uint16_t  *readLen;
 } AT_CmdResp_t;
 
 
 
 struct AT_BufferReadTo {
   void      *buffer;
-  uint16_t  bufferSize;
   uint16_t  readLen;
 };
 

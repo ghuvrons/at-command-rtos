@@ -5,7 +5,8 @@
 #include "at-command/config.h"
 
 typedef struct {
-  uint32_t timeout;
+  uint32_t commandTimeout;
+  uint32_t checkTimeout;
 } AT_Config_t;
 
 typedef struct {
@@ -30,7 +31,8 @@ typedef struct {
   // at process
   AT_EventHandler_t *handlers;
   AT_CmdResp_t currentCommand;
-  const char *stringFlag;
+  const char *stringFlagStart;
+  const char *stringFlagEnd;
   uint32_t availableBitEvent;
   struct AT_BufferReadTo *bufferReadTo;
 
@@ -54,13 +56,28 @@ AT_Status_t AT_ReadIntoBufferOn(AT_HandlerTypeDef*, AT_Command_t, void *app,
                                 AT_EH_CallbackBufReadTo_t);
 
 AT_Status_t AT_WaitStringFlag(AT_HandlerTypeDef*, const char *str, uint8_t len);
+
 AT_Status_t AT_Command(AT_HandlerTypeDef*, AT_Command_t, 
                        uint8_t paramNb, AT_Data_t *params, 
                        uint8_t respNb, AT_Data_t *resp);
+
+AT_Status_t AT_CommandWithTimeout(AT_HandlerTypeDef*, AT_Command_t,
+                                  uint8_t paramNb, AT_Data_t *params,
+                                  uint8_t respNb, AT_Data_t *resp, uint32_t timeout);
+
 AT_Status_t AT_Check(AT_HandlerTypeDef *hat, AT_Command_t cmd,
                      uint8_t respNb, AT_Data_t *resp);
+
+AT_Status_t AT_CheckWithMultResp(AT_HandlerTypeDef *hat, AT_Command_t cmd,
+                                 uint8_t respListSize, uint8_t respDataNb, AT_Data_t *resp);
+
+AT_Status_t AT_CommandReadInto(AT_HandlerTypeDef*, AT_Command_t,
+                               void *buffer, uint16_t *length,
+                               uint8_t paramNb, AT_Data_t *params,
+                               uint8_t respNb, AT_Data_t *resp);
+
 AT_Status_t AT_CommandWrite(AT_HandlerTypeDef*, AT_Command_t,
-                            const char *flag,
+                            const char *flagStart, const char *flagEnd,
                             uint8_t *data, uint16_t length,
                             uint8_t paramNb, AT_Data_t *params,
                             uint8_t respNb, AT_Data_t *resp);

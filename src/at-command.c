@@ -20,7 +20,8 @@ AT_Status_t AT_Init(AT_HandlerTypeDef *hat, AT_Config_t *config)
 
   memset(hat->bufferCmd, 0, AT_BUF_CMD_SZ);
   hat->bufferRespLen = 0;
-  hat->stringFlag = 0;
+  hat->stringFlagStart = 0;
+  hat->stringFlagEnd = 0;
   hat->availableBitEvent = 5;
 
   if (config)
@@ -30,17 +31,28 @@ AT_Status_t AT_Init(AT_HandlerTypeDef *hat, AT_Config_t *config)
 
 void AT_Process(AT_HandlerTypeDef *hat)
 {
-  uint16_t          readLen;
+  uint16_t          readLen, i;
   AT_EventHandler_t *handlers;
   uint8_t           isHandlerFound;
   const char        *respText;
+  uint8_t           respListSize;
   uint8_t           respNb;
   AT_Data_t         *respDataPtr;
   uint8_t           bytesFlagLen;
+  uint16_t          nextBufferRespStart = 0;
+  uint16_t          nextBufferRespLen;
 
   while (1) {
-    if (hat->stringFlag != 0) {
-      bytesFlagLen = strlen(hat->stringFlag);
+    if (nextBufferRespStart) {
+      hat->bufferRespLen = 0;
+      for (i = nextBufferRespStart; i < nextBufferRespStart+nextBufferRespLen; i++) {
+        hat->bufferResp[hat->bufferRespLen] = hat->bufferResp[i];
+        hat->bufferRespLen++;
+      }
+      nextBufferRespStart = 0;
+    }
+    if (hat->stringFlagStart != 0) {
+      bytesFlagLen = strlen(hat->stringFlagStart);
 
       if (hat->bufferRespLen < bytesFlagLen) {
         readLen = hat->serial.read(&hat->bufferResp[hat->bufferRespLen], bytesFlagLen-hat->bufferRespLen);
@@ -49,15 +61,27 @@ void AT_Process(AT_HandlerTypeDef *hat)
       }
 
       if (hat->bufferRespLen >= bytesFlagLen) {
-        if (strncmp((const char*)hat->bufferResp, hat->stringFlag, bytesFlagLen) == 0) {
-          hat->stringFlag = 0;
-          hat->rtos.eventSet(AT_EVT_BYTES_FLAG);
+        if (strncmp((const char*)hat->bufferResp, hat->stringFlagStart, bytesFlagLen) == 0) {
+          hat->stringFlagStart = 0;
+          hat->rtos.eventSet(AT_EVT_BYTES_FLAG_START);
           hat->bufferRespLen = 0;
           continue;
         }
       }
     }
 
+    // is any line in middle of buffer
+    if (hat->stringFlagStart != 0 && hat->bufferRespLen > 2) {
+      for (i = 1; i < hat->bufferRespLen-1; i++) {
+        if (hat->bufferResp[i-1] == '\r' && hat->bufferResp[i] == '\n') {
+          nextBufferRespLen = hat->bufferRespLen - (i+1);
+          nextBufferRespStart = hat->bufferRespLen = i+1;
+          break;
+        }
+      }
+    }
+
+    // search "\r\n"
     while (hat->bufferRespLen > 0 && *(hat->bufferResp+hat->bufferRespLen-1) == '\r') {
       readLen = hat->serial.read(&hat->bufferResp[hat->bufferRespLen], 1);
       if (readLen <= 0) continue;
@@ -81,33 +105,63 @@ void AT_Process(AT_HandlerTypeDef *hat)
     }
 
     if (hat->bufferRespLen == 2 && strncmp((const char*)hat->bufferResp, "\r\n", 2) == 0) {
+      goto next;
     } else if (strncmp((const char*)hat->bufferResp, "OK", 2) == 0) {
       hat->rtos.eventSet(AT_EVT_OK);
     } else if (strncmp((const char*)hat->bufferResp, "ERROR", 5) == 0) {
       hat->rtos.eventSet(AT_EVT_ERROR);
+    } else if (strncmp((const char*)hat->bufferResp, "+CME ERROR", 10) == 0) {
+      hat->rtos.eventSet(AT_EVT_ERROR);
+    } else if (hat->stringFlagEnd != 0
+                && strncmp((const char*)hat->bufferResp,
+                           hat->stringFlagEnd,
+                           strlen(hat->stringFlagEnd)) == 0)
+    {
+      hat->rtos.eventSet(AT_EVT_BYTES_FLAG_END);
+      hat->stringFlagEnd = 0;
+      if (hat->currentCommand.resp != 0 && hat->currentCommand.resp->ptr != 0) {
+        memcpy(hat->currentCommand.resp->ptr,
+               hat->bufferResp,
+               (hat->currentCommand.resp->size < hat->bufferRespLen)?
+                   hat->currentCommand.resp->size : hat->bufferRespLen);
+      }
     } else {
       // check whether command waiting response
-      if (hat->currentCommand.cmd != 0 
+      if (hat->currentCommand.cmd != 0
           && hat->currentCommand.cmdLen != 0
           && strncmp((const char*)&hat->bufferResp[0],
-                     hat->currentCommand.cmd, 
+                     hat->currentCommand.cmd,
                      hat->currentCommand.cmdLen) == 0)
       {
-        respNb = hat->currentCommand.respNb;
-        respDataPtr = hat->currentCommand.resp;
-        respText = (const char*) hat->bufferResp + hat->currentCommand.cmdLen;
+        respListSize  = hat->currentCommand.respListSize;
+        respNb        = hat->currentCommand.respNb;
+        respDataPtr   = hat->currentCommand.resp;
+        respText      = (const char*) hat->bufferResp + hat->currentCommand.cmdLen;
+
+        if (respListSize == 0) respListSize = 1;
 
         while (respNb > 0 && *(respText-2) != ':') {
           if (*respText == 0) break;
           respText++;
         }
 
-        while (respDataPtr && respNb--) {
+        while (respDataPtr && respListSize && respNb--) {
           respText = AT_ParseResponse(respText, respDataPtr);
           respDataPtr++;
         }
 
-        hat->rtos.eventSet(AT_EVT_CMD_RESP);
+        if (--respListSize) {
+          hat->currentCommand.respListSize = respListSize;
+          hat->currentCommand.resp++;
+        } else {
+          hat->rtos.eventSet(AT_EVT_CMD_RESP);
+        }
+
+        // if command readinto
+        if (hat->currentCommand.buffer != 0 && hat->currentCommand.readLen != 0) {
+          hat->serial.readinto(hat->currentCommand.buffer,
+                               *(hat->currentCommand.readLen));
+        }
         goto next;
       }
 
@@ -147,23 +201,11 @@ void AT_Process(AT_HandlerTypeDef *hat)
           struct AT_BufferReadTo recv = handlers->callbackBufferReadTo(handlers->app,
                                                                        handlers->cmdResp.resp);
 
-          if (recv.buffer != 0 && recv.bufferSize > 0) {
-            recv.readLen -= hat->serial.readinto(recv.buffer,
-                                                 (recv.bufferSize >= recv.readLen)?
-                                                     recv.readLen:
-                                                     recv.bufferSize);
-          }
-
-          while (recv.readLen > 0) {
-            recv.readLen -= hat->serial.read(hat->bufferResp,
-                                             (AT_BUF_RESP_SZ >= recv.readLen)?
-                                                 recv.readLen:
-                                                 AT_BUF_RESP_SZ);
+          if (recv.buffer != 0) {
+            hat->serial.readinto(recv.buffer, recv.readLen);
           }
         }
       }
-
-      // flush buffer resp
     }
 
   next:
@@ -270,9 +312,9 @@ AT_Status_t AT_WaitStringFlag(AT_HandlerTypeDef *hat, const char *str, uint8_t l
   AT_Status_t status = AT_OK;
   uint32_t events;
 
-  hat->stringFlag = str;
+  hat->stringFlagStart = str;
 
-  if (hat->rtos.eventWait(AT_EVT_BYTES_FLAG, &events, hat->config.timeout) != AT_OK) {
+  if (hat->rtos.eventWait(AT_EVT_BYTES_FLAG_START, &events, hat->config.commandTimeout) != AT_OK) {
     goto endCmd;
   }
   
@@ -285,10 +327,19 @@ AT_Status_t AT_Command(AT_HandlerTypeDef *hat, AT_Command_t cmd,
                        uint8_t paramNb, AT_Data_t *params, 
                        uint8_t respNb, AT_Data_t *resp)
 {
+  return AT_CommandWithTimeout(hat, cmd, paramNb, params, respNb, resp,
+                               hat->config.commandTimeout);
+}
+
+
+AT_Status_t AT_CommandWithTimeout(AT_HandlerTypeDef *hat, AT_Command_t cmd,
+                                  uint8_t paramNb, AT_Data_t *params,
+                                  uint8_t respNb, AT_Data_t *resp, uint32_t timeout)
+{
   AT_Status_t status = AT_ERROR;
   uint16_t writecmdLen;
 
-  if (hat->rtos.mutexLock(hat->config.timeout) != AT_OK) return AT_ERROR;
+  if (hat->rtos.mutexLock(timeout) != AT_OK) return AT_ERROR;
   hat->rtos.eventClear(AT_EVT_OK|AT_EVT_ERROR|AT_EVT_CMD_RESP);
 
   writecmdLen = AT_WriteCommand(hat->bufferCmd, AT_BUF_CMD_SZ, cmd, paramNb, params);
@@ -305,15 +356,17 @@ AT_Status_t AT_Command(AT_HandlerTypeDef *hat, AT_Command_t cmd,
   // wait response
   uint32_t events;
 
-  if (hat->rtos.eventWait(AT_EVT_OK|AT_EVT_ERROR, &events, hat->config.timeout) != AT_OK) {
+  if (hat->rtos.eventWait(AT_EVT_OK|AT_EVT_ERROR, &events, timeout) != AT_OK) {
     goto endCmd;
   }
 
-  if (events & AT_EVT_ERROR) goto endCmd;
+  if (events & AT_EVT_ERROR) {
+    goto endCmd;
+  }
 
   if (respNb > 0) {
     events = 0;
-    hat->rtos.eventWait(AT_EVT_CMD_RESP, &events, hat->config.timeout);
+    hat->rtos.eventWait(AT_EVT_CMD_RESP, &events, 1);
   }
 
   status = AT_OK;
@@ -324,22 +377,31 @@ endCmd:
   return status;
 }
 
+
 AT_Status_t AT_Check(AT_HandlerTypeDef *hat, AT_Command_t cmd,
                      uint8_t respNb, AT_Data_t *resp)
+{
+  return AT_CheckWithMultResp(hat, cmd, 1, respNb, resp);
+}
+
+
+AT_Status_t AT_CheckWithMultResp(AT_HandlerTypeDef *hat, AT_Command_t cmd,
+                                 uint8_t respListSize, uint8_t respDataNb, AT_Data_t *resp)
 {
   AT_Status_t status = AT_ERROR;
   uint16_t writecmdLen = 0;
 
-  if (hat->rtos.mutexLock(hat->config.timeout) != AT_OK) return AT_ERROR;
+  if (hat->rtos.mutexLock(hat->config.checkTimeout) != AT_OK) return AT_ERROR;
   hat->rtos.eventClear(AT_EVT_OK|AT_EVT_ERROR|AT_EVT_CMD_RESP);
 
   writecmdLen = snprintf((char*)hat->bufferCmd, AT_BUF_CMD_SZ, "AT%s?\r\n", cmd);
 
-  if (respNb > 0) {
-    hat->currentCommand.cmdLen  = strlen(cmd);
-    hat->currentCommand.cmd     = cmd;
-    hat->currentCommand.respNb  = respNb;
-    hat->currentCommand.resp    = resp;
+  if (respListSize > 0 && respDataNb > 0) {
+    hat->currentCommand.cmdLen        = strlen(cmd);
+    hat->currentCommand.cmd           = cmd;
+    hat->currentCommand.respListSize  = respListSize;
+    hat->currentCommand.respNb        = respDataNb;
+    hat->currentCommand.resp          = resp;
   }
 
   hat->serial.write(hat->bufferCmd, writecmdLen);
@@ -347,15 +409,69 @@ AT_Status_t AT_Check(AT_HandlerTypeDef *hat, AT_Command_t cmd,
   // wait response
   uint32_t events;
 
-  if (hat->rtos.eventWait(AT_EVT_OK|AT_EVT_ERROR, &events, hat->config.timeout) != AT_OK) {
+  if (hat->rtos.eventWait(AT_EVT_OK|AT_EVT_ERROR, &events, hat->config.checkTimeout) != AT_OK) {
     goto endCmd;
   }
 
   if (events & AT_EVT_ERROR) goto endCmd;
 
+  if (respListSize > 0 && respDataNb > 0) {
+    events = 0;
+    hat->rtos.eventWait(AT_EVT_CMD_RESP, &events, 1);
+  }
+
+  status = AT_OK;
+
+endCmd:
+  if (respListSize > 0 && respDataNb > 0)
+    memset(&hat->currentCommand, 0, sizeof(hat->currentCommand));
+  hat->rtos.mutexUnlock();
+  return status;
+}
+
+
+AT_Status_t AT_CommandReadInto(AT_HandlerTypeDef *hat, AT_Command_t cmd,
+                               void *buffer, uint16_t *length,
+                               uint8_t paramNb, AT_Data_t *params,
+                               uint8_t respNb, AT_Data_t *resp)
+{
+  AT_Status_t status = AT_ERROR;
+  uint16_t writecmdLen;
+
+  if (hat->rtos.mutexLock(hat->config.commandTimeout) != AT_OK) return AT_ERROR;
+  hat->rtos.eventClear(AT_EVT_OK|AT_EVT_ERROR|AT_EVT_CMD_RESP);
+
+  writecmdLen = AT_WriteCommand(hat->bufferCmd, AT_BUF_CMD_SZ, cmd, paramNb, params);
+
+  if (respNb > 0) {
+    hat->currentCommand.cmdLen  = strlen(cmd);
+    hat->currentCommand.cmd     = cmd;
+    hat->currentCommand.respNb  = respNb;
+    hat->currentCommand.resp    = resp;
+    hat->currentCommand.buffer  = buffer;
+    hat->currentCommand.readLen = length;
+  }
+
+  hat->serial.write(hat->bufferCmd, writecmdLen);
+
+  // wait response
+  uint32_t events;
+
+  if (respNb > 0 && hat->rtos.eventWait(AT_EVT_CMD_RESP, &events, hat->config.commandTimeout) != AT_OK) {
+    goto endCmd;
+  }
+
+  if (hat->rtos.eventWait(AT_EVT_OK|AT_EVT_ERROR, &events, hat->config.commandTimeout) != AT_OK) {
+    goto endCmd;
+  }
+
+  if (events & AT_EVT_ERROR) {
+    goto endCmd;
+  }
+
   if (respNb > 0) {
     events = 0;
-    hat->rtos.eventWait(AT_EVT_CMD_RESP, &events, hat->config.timeout);
+    hat->rtos.eventWait(AT_EVT_CMD_RESP, &events, 1);
   }
 
   status = AT_OK;
@@ -368,7 +484,7 @@ endCmd:
 
 
 AT_Status_t AT_CommandWrite(AT_HandlerTypeDef *hat, AT_Command_t cmd,
-                            const char *flag,
+                            const char *flagStart, const char *flagEnd,
                             uint8_t *data, uint16_t length,
                             uint8_t paramNb, AT_Data_t *params,
                             uint8_t respNb, AT_Data_t *resp)
@@ -377,10 +493,11 @@ AT_Status_t AT_CommandWrite(AT_HandlerTypeDef *hat, AT_Command_t cmd,
   uint16_t writecmdLen = 0;
   uint32_t events;
 
-  if (hat->rtos.mutexLock(hat->config.timeout) != AT_OK) {
+  if (hat->rtos.mutexLock(hat->config.commandTimeout) != AT_OK) {
     return AT_ERROR;
   }
-  hat->rtos.eventClear(AT_EVT_BYTES_FLAG|AT_EVT_OK|AT_EVT_ERROR|AT_EVT_CMD_RESP);
+  hat->rtos.eventClear(AT_EVT_BYTES_FLAG_START|AT_EVT_BYTES_FLAG_END|
+                       AT_EVT_OK|AT_EVT_ERROR|AT_EVT_CMD_RESP);
 
   writecmdLen = AT_WriteCommand(hat->bufferCmd, AT_BUF_CMD_SZ, cmd, paramNb, params);
 
@@ -390,29 +507,36 @@ AT_Status_t AT_CommandWrite(AT_HandlerTypeDef *hat, AT_Command_t cmd,
     hat->currentCommand.respNb  = respNb;
     hat->currentCommand.resp    = resp;
   }
-  hat->stringFlag = flag;
+  hat->stringFlagStart = flagStart;
+
+  if (flagEnd != 0 &&  *flagEnd == 0) flagEnd = 0;
+  hat->stringFlagEnd = flagEnd;
 
   hat->serial.write(hat->bufferCmd, writecmdLen);
 
-  if (hat->rtos.eventWait(AT_EVT_BYTES_FLAG, &events, hat->config.timeout) != AT_OK) {
-    hat->stringFlag = 0;
+  if (hat->rtos.eventWait(AT_EVT_BYTES_FLAG_START, &events, hat->config.commandTimeout) != AT_OK) {
+    hat->stringFlagStart = 0;
     goto endCmd;
   }
-  hat->stringFlag = 0;
+  hat->stringFlagStart = 0;
 
   hat->serial.write(data, length);
 
-  if (hat->rtos.eventWait(AT_EVT_OK|AT_EVT_ERROR, &events, hat->config.timeout) != AT_OK) {
-    goto endCmd;
+  if (hat->stringFlagEnd != 0) {
+    if (hat->rtos.eventWait(AT_EVT_ERROR|AT_EVT_BYTES_FLAG_END, &events, hat->config.commandTimeout) != AT_OK) {
+      goto endCmd;
+    }
+    if (events & AT_EVT_ERROR) {
+      goto endCmd;
+    }
   }
+  else {
+    if (hat->rtos.eventWait(AT_EVT_OK|AT_EVT_ERROR, &events, hat->config.commandTimeout) != AT_OK) {
+      goto endCmd;
+    }
 
-  if (events & AT_EVT_ERROR) {
-    goto endCmd;
-  }
-
-  if (respNb > 0) {
     events = 0;
-    hat->rtos.eventWait(AT_EVT_CMD_RESP, &events, hat->config.timeout);
+    hat->rtos.eventWait(AT_EVT_CMD_RESP, &events, hat->config.commandTimeout);
   }
 
   status = AT_OK;
