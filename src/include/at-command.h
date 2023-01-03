@@ -17,7 +17,7 @@ typedef struct {
     int (*read)(uint8_t *dst, uint16_t len);
     int (*readline)(uint8_t *dst, uint16_t len);
     int (*readinto)(void *buf, uint16_t len);
-    int (*write)(uint8_t *src, uint16_t len);
+    int (*write)(const uint8_t *src, uint16_t len);
   } serial;
 
   struct {
@@ -78,7 +78,7 @@ AT_Status_t AT_CommandReadInto(AT_HandlerTypeDef*, AT_Command_t,
 
 AT_Status_t AT_CommandWrite(AT_HandlerTypeDef*, AT_Command_t,
                             const char *flagStart, const char *flagEnd,
-                            uint8_t *data, uint16_t length,
+                            const uint8_t *data, uint16_t length,
                             uint8_t paramNb, AT_Data_t *params,
                             uint8_t respNb, AT_Data_t *resp);
 #endif

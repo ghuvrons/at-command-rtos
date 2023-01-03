@@ -485,7 +485,7 @@ endCmd:
 
 AT_Status_t AT_CommandWrite(AT_HandlerTypeDef *hat, AT_Command_t cmd,
                             const char *flagStart, const char *flagEnd,
-                            uint8_t *data, uint16_t length,
+                            const uint8_t *data, uint16_t length,
                             uint8_t paramNb, AT_Data_t *params,
                             uint8_t respNb, AT_Data_t *resp)
 {
