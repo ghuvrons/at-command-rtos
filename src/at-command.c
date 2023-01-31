@@ -246,7 +246,22 @@ AT_Status_t AT_On(AT_HandlerTypeDef *hat, AT_Command_t cmd, void *app,
   return AT_OK;
 }
 
-
+/**
+ * example:
+ *
+ * < <cmd><next string><CR><LF>
+ *
+ * then callback will call
+ *
+ * cb(<cmd><next string><CR><LF>, size)
+ *
+ *
+ * @param hat
+ * @param cmd
+ * @param app
+ * @param cb
+ * @return
+ */
 AT_Status_t AT_ReadlineOn(AT_HandlerTypeDef *hat, AT_Command_t cmd, void *app, AT_EH_CallbackReadline_t cb)
 {
   AT_EventHandler_t *handlerPtr;
@@ -275,7 +290,25 @@ AT_Status_t AT_ReadlineOn(AT_HandlerTypeDef *hat, AT_Command_t cmd, void *app, A
   return AT_OK;
 }
 
-
+/**
+ * example:
+ *
+ * < <cmd>: resp, resp
+ *
+ * then callback will call and return buffer and length of data should be read
+ *
+ * < <buffer with length>
+ *
+ * can be used for "+RECEIVE" in simcom
+ *
+ * @param hat
+ * @param cmd
+ * @param app
+ * @param respNb
+ * @param respData
+ * @param cb
+ * @return
+ */
 AT_Status_t AT_ReadIntoBufferOn(AT_HandlerTypeDef *hat, AT_Command_t cmd, void *app,
                                 uint8_t respNb, AT_Data_t *respData,
                                 AT_EH_CallbackBufReadTo_t cb)
@@ -322,7 +355,24 @@ endCmd:
   return status;
 }
 
-
+/**
+ * example (without param):
+ * > AT+<cmd>
+ * < OK
+ *
+ * example (with param):
+ * > AT+<cmd>: param, param
+ * < +<cmd>: resp, resp
+ * < OK
+ *
+ * @param hat
+ * @param cmd
+ * @param paramNb
+ * @param params
+ * @param respNb
+ * @param resp
+ * @return AT_Status_t
+ */
 AT_Status_t AT_Command(AT_HandlerTypeDef *hat, AT_Command_t cmd, 
                        uint8_t paramNb, AT_Data_t *params, 
                        uint8_t respNb, AT_Data_t *resp)
@@ -377,14 +427,39 @@ endCmd:
   return status;
 }
 
-
+/**
+ * example:
+ * > AT+<cmd>?
+ * < +<cmd>: resp, resp
+ * < OK
+ *
+ * @param hat
+ * @param cmd
+ * @param respNb
+ * @param resp
+ * @return AT_Status_t
+ */
 AT_Status_t AT_Check(AT_HandlerTypeDef *hat, AT_Command_t cmd,
                      uint8_t respNb, AT_Data_t *resp)
 {
   return AT_CheckWithMultResp(hat, cmd, 1, respNb, resp);
 }
 
-
+/**
+ * example:
+ * > AT+<cmd>?
+ * < +<cmd>: resp
+ * < +<cmd>: resp
+ * < +<cmd>: resp
+ * < OK
+ *
+ * @param hat
+ * @param cmd
+ * @param respListSize
+ * @param respDataNb
+ * @param resp
+ * @return
+ */
 AT_Status_t AT_CheckWithMultResp(AT_HandlerTypeDef *hat, AT_Command_t cmd,
                                  uint8_t respListSize, uint8_t respDataNb, AT_Data_t *resp)
 {
@@ -482,7 +557,28 @@ endCmd:
   return status;
 }
 
-
+/**
+ * example:
+ *
+ * > AT+<cmd>: param, param
+ * < <flagStart>
+ * > <data>
+ * < <flagEnd>
+ * < +<cmd>: resp resp
+ * < OK
+ *
+ * @param hat
+ * @param cmd
+ * @param flagStart
+ * @param flagEnd
+ * @param data
+ * @param length
+ * @param paramNb
+ * @param params
+ * @param respNb
+ * @param resp
+ * @return
+ */
 AT_Status_t AT_CommandWrite(AT_HandlerTypeDef *hat, AT_Command_t cmd,
                             const char *flagStart, const char *flagEnd,
                             const uint8_t *data, uint16_t length,
@@ -536,7 +632,9 @@ AT_Status_t AT_CommandWrite(AT_HandlerTypeDef *hat, AT_Command_t cmd,
     }
 
     events = 0;
-    hat->rtos.eventWait(AT_EVT_CMD_RESP, &events, hat->config.commandTimeout);
+    if (respNb > 0 && hat->rtos.eventWait(AT_EVT_CMD_RESP, &events, hat->config.commandTimeout) != AT_OK) {
+      goto endCmd;
+    }
   }
 
   status = AT_OK;

@@ -17,6 +17,7 @@ typedef enum {
 } AT_Status_t;
 
 typedef enum {
+  AT_UNAVAILABLE,
   AT_NUMBER,
   AT_STRING,
   AT_BYTES,
@@ -64,9 +65,10 @@ typedef struct AT_EventHandler_t {
   void          *app;
   AT_CmdResp_t  cmdResp;
 
-  AT_EH_Callback_t callback;
-  AT_EH_CallbackReadline_t callbackReadline;
+  AT_EH_Callback_t          callback;
+  AT_EH_CallbackReadline_t  callbackReadline;
   AT_EH_CallbackBufReadTo_t callbackBufferReadTo;
+
   struct AT_EventHandler_t *next;
 } AT_EventHandler_t;
 
