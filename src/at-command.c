@@ -152,7 +152,7 @@ void AT_Process(AT_HandlerTypeDef *hat)
 
         if (--respListSize) {
           hat->currentCommand.respListSize = respListSize;
-          hat->currentCommand.resp++;
+          hat->currentCommand.resp = respDataPtr;
         } else {
           hat->rtos.eventSet(AT_EVT_CMD_RESP);
         }
