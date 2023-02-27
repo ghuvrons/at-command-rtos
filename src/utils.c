@@ -80,7 +80,7 @@ const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
     if (*respStr == 0) return 0;
     else if (*respStr == '\r') {
       if (isBinary) {
-        if (isParsing && strOutput != 0)
+        if (isParsing && strOutput != 0 && outputSZ > 0)
           *strOutput = 0;
         strOutput = 0;
         break;
@@ -90,12 +90,17 @@ const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
 
     else if (*respStr == ',' && !isInStr && !isInBracket) {
       respStr++;
+      if (isBinary) {
+        if (isParsing && strOutput != 0 && outputSZ > 0)
+          *strOutput = 0;
+        strOutput = 0;
+      }
       break;
     }
 
     else if (*respStr == '\"') {
       if (isInStr) {
-        if (isParsing && strOutput != 0)
+        if (isParsing && strOutput != 0 && outputSZ > 0)
           *strOutput = 0;
         strOutput = 0;
         isInStr = 0;
@@ -115,11 +120,24 @@ const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
           data->value.string = (const char*)data->ptr;
           strOutput = data->ptr;
           outputSZ = data->size;
-        } else {
-          if (*respStr >= '0' && *respStr <= '9') {
-            data->type = AT_NUMBER;
-            data->value.number = atoi((char*)respStr);
-          } else if (data->ptr != 0) {
+        }
+        else {
+          if (data->ptr != 0 && (data->type == AT_STRING || data->type == AT_HEX)) {
+            isBinary = 1;
+            data->value.string = (const char*)data->ptr;
+            strOutput = data->ptr;
+            outputSZ = data->size;
+          }
+          else if ((*respStr >= '0' && *respStr <= '9') || *respStr == '-') {
+            if (data->type == AT_FLOAT) {
+              data->value.floatNumber = atoff(respStr);
+            }
+            else {
+              data->type = AT_NUMBER;
+              data->value.number = atoi(respStr);
+            }
+          }
+          else if (data->ptr != 0) {
             data->type = AT_STRING;
             isBinary = 1;
             data->value.string = (const char*)data->ptr;
@@ -137,6 +155,8 @@ const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
       }
 
       if ((isInStr || isBinary) && outputSZ != 0 && strOutput != 0) {
+        // [TODO]: is type is hex, read 2 char then convert to uint8_t
+        //         then save to strOutput
         *strOutput = (char) *respStr;
         strOutput++;
         outputSZ--;
