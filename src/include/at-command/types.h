@@ -74,6 +74,14 @@ typedef struct AT_EventHandler_t {
   struct AT_EventHandler_t *next;
 } AT_EventHandler_t;
 
+typedef struct AT_PrefixHandler_t {
+  const char *prefix;
+  uint16_t prefixLen;
+
+  void   (*callback)(void *atPtr);
+  struct AT_PrefixHandler_t *next;
+} AT_PrefixHandler_t;
+
 #define AT_Number(n)        {.type = AT_NUMBER, .value.number = (n),      .ptr=0,     .size=0,}
 #define AT_Float(n)         {.type = AT_FLOAT,  .value.floatNumber = (n), .ptr=0,     .size=0,}
 #define AT_String(str)      {.type = AT_STRING, .value.string = (str),    .ptr=0,     .size=0,}

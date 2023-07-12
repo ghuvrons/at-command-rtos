@@ -31,61 +31,107 @@ AT_Status_t AT_Init(AT_HandlerTypeDef *hat, AT_Config_t *config)
 
 void AT_Process(AT_HandlerTypeDef *hat)
 {
-  uint16_t          readLen, i;
-  AT_EventHandler_t *handlers;
-  uint8_t           isHandlerFound;
-  const char        *respText;
-  uint8_t           respListSize;
-  uint8_t           respNb;
-  AT_Data_t         *respDataPtr;
-  uint8_t           bytesFlagLen;
-  uint16_t          nextBufferRespStart = 0;
-  uint16_t          nextBufferRespLen;
+  uint16_t           readLen;
+  AT_EventHandler_t  *handlers;
+  uint8_t            isHandlerFound;
+  const char         *respText;
+  uint8_t            respListSize;
+  uint8_t            respNb;
+  AT_Data_t          *respDataPtr;
+  AT_PrefixHandler_t *prefixHandlerPtr;
+  const char         *stringFlagStart;
+  uint8_t            stringFlagStartLen;
+  // uint16_t           nextBufferRespStart = 0;
+  // uint16_t           nextBufferRespLen;
+  // uint16_t           i;
 
+  startProcess:
   while (1) {
-    if (nextBufferRespStart) {
-      hat->bufferRespLen = 0;
-      for (i = nextBufferRespStart; i < nextBufferRespStart+nextBufferRespLen; i++) {
-        hat->bufferResp[hat->bufferRespLen] = hat->bufferResp[i];
-        hat->bufferRespLen++;
-      }
-      nextBufferRespStart = 0;
+    if (hat->bufferRespLen == 0) {
+      prefixHandlerPtr  = hat->prefixhandlers;
+      stringFlagStart   = hat->stringFlagStart;
+      if (stringFlagStart)
+        stringFlagStartLen = strlen(hat->stringFlagStart);
+      else
+        stringFlagStartLen = 0;
     }
-    if (hat->stringFlagStart != 0) {
-      bytesFlagLen = strlen(hat->stringFlagStart);
 
-      if (hat->bufferRespLen < bytesFlagLen) {
-        readLen = hat->serial.read(&hat->bufferResp[hat->bufferRespLen], bytesFlagLen-hat->bufferRespLen);
-        if (readLen <= 0) continue;
-        hat->bufferRespLen += readLen;
-      }
+//    // shift unhandle buffer to first buffer
+//    if (nextBufferRespStart) {
+//      hat->bufferRespLen = 0;
+//      for (i = nextBufferRespStart; i < nextBufferRespStart+nextBufferRespLen; i++) {
+//        hat->bufferResp[hat->bufferRespLen] = hat->bufferResp[i];
+//        hat->bufferRespLen++;
+//      }
+//      nextBufferRespStart = 0;
+//    }
 
-      if (hat->bufferRespLen >= bytesFlagLen) {
-        if (strncmp((const char*)hat->bufferResp, hat->stringFlagStart, bytesFlagLen) == 0) {
+    // read byte
+    if ((prefixHandlerPtr != 0 && hat->bufferRespLen < prefixHandlerPtr->prefixLen) ||
+        (stringFlagStart != 0 && hat->bufferRespLen < stringFlagStartLen))
+    {
+      if (AT_ReadIntoBufferResp(hat, 1) < 0) continue;
+    }
+
+    // Check stringFlagStart
+    if (stringFlagStart != 0) {
+      if (hat->bufferRespLen == stringFlagStartLen) {
+        if (strncmp((const char*)hat->bufferResp, hat->stringFlagStart, stringFlagStartLen) == 0) {
           hat->stringFlagStart = 0;
           hat->rtos.eventSet(AT_EVT_BYTES_FLAG_START);
           hat->bufferRespLen = 0;
+          stringFlagStart = 0;
+          stringFlagStartLen = 0;
           continue;
+        }
+        else {
+          stringFlagStart = 0;
+          stringFlagStartLen = 0;
         }
       }
     }
 
-    // is any line in middle of buffer
-    if (hat->stringFlagStart != 0 && hat->bufferRespLen > 2) {
-      for (i = 1; i < hat->bufferRespLen-1; i++) {
-        if (hat->bufferResp[i-1] == '\r' && hat->bufferResp[i] == '\n') {
-          nextBufferRespLen = hat->bufferRespLen - (i+1);
-          nextBufferRespStart = hat->bufferRespLen = i+1;
-          break;
+    // Check prefix
+    if (prefixHandlerPtr != 0) {
+      if (hat->bufferRespLen >= prefixHandlerPtr->prefixLen) {
+        while (prefixHandlerPtr && hat->bufferRespLen >= prefixHandlerPtr->prefixLen) {
+          if (strncmp((const char*)hat->bufferResp,
+                      prefixHandlerPtr->prefix,
+                      prefixHandlerPtr->prefixLen) == 0)
+          {
+            prefixHandlerPtr->callback(hat);
+            hat->bufferRespLen = 0;
+            goto startProcess;
+          }
+          prefixHandlerPtr = prefixHandlerPtr->next;
         }
       }
     }
+
+    // check whether buffer is one line
+    if (hat->bufferRespLen >= 2 &&
+        (strncmp((const char*)(hat->bufferResp+hat->bufferRespLen-2), "\r\n", 2) == 0))
+    {
+      goto handleCommand;
+    }
+    else if (prefixHandlerPtr != 0 || stringFlagStart != 0) {
+      continue;
+    }
+
+//    // check whether any line in middle of buffer
+//    if (hat->stringFlagStart != 0 && hat->bufferRespLen > 2) {
+//      for (i = 1; i < hat->bufferRespLen-1; i++) {
+//        if (hat->bufferResp[i-1] == '\r' && hat->bufferResp[i] == '\n') {
+//          nextBufferRespLen = hat->bufferRespLen - (i+1);
+//          nextBufferRespStart = hat->bufferRespLen = i+1;
+//          goto handleCommand;
+//        }
+//      }
+//    }
 
     // search "\r\n"
     while (hat->bufferRespLen > 0 && *(hat->bufferResp+hat->bufferRespLen-1) == '\r') {
-      readLen = hat->serial.read(&hat->bufferResp[hat->bufferRespLen], 1);
-      if (readLen <= 0) continue;
-      hat->bufferRespLen += readLen;
+      if (AT_ReadIntoBufferResp(hat, 1) < 0) continue;
     }
 
     // try to read one line
@@ -104,6 +150,7 @@ void AT_Process(AT_HandlerTypeDef *hat)
       }
     }
 
+    handleCommand:
     if (hat->bufferRespLen == 2 && strncmp((const char*)hat->bufferResp, "\r\n", 2) == 0) {
       goto next;
     } else if (strncmp((const char*)hat->bufferResp, "OK", 2) == 0) {
@@ -241,6 +288,55 @@ AT_Status_t AT_On(AT_HandlerTypeDef *hat, AT_Command_t cmd, void *app,
       handlerPtr = handlerPtr->next;
     }
     handlerPtr->next = newHandlers;
+  }
+
+  return AT_OK;
+}
+
+
+AT_Status_t AT_OnPrefix(AT_HandlerTypeDef *hat,
+                        const char *prefix,
+                        void (*callback)(AT_HandlerTypeDef *atPtr))
+{
+  if (strlen(prefix) == 0) return AT_ERROR;
+
+  AT_PrefixHandler_t *currentptr = hat->prefixhandlers;
+  AT_PrefixHandler_t *prevPtr = 0;
+  AT_PrefixHandler_t *newHandlers = (AT_PrefixHandler_t*) malloc(sizeof(AT_PrefixHandler_t));
+
+  newHandlers->prefix = prefix;
+  newHandlers->prefixLen = strlen(prefix);
+  newHandlers->callback = (void (*)(void *)) callback;
+
+  if (hat->prefixhandlers == 0) {
+    hat->prefixhandlers = newHandlers;
+    return AT_OK;
+  }
+
+  // Add new handler in link list sort by prefixLen
+  currentptr = hat->prefixhandlers;
+  while (currentptr) {
+    if (strcmp(currentptr->prefix, newHandlers->prefix) == 0) {
+      currentptr->callback = newHandlers->callback;
+      free(newHandlers);
+      break;
+    }
+    if (currentptr->prefixLen > newHandlers->prefixLen) {
+      newHandlers->next = currentptr;
+      if (prevPtr == 0) {
+        hat->prefixhandlers = newHandlers;
+      }
+      else {
+        prevPtr->next = newHandlers;
+      }
+      break;
+    }
+    prevPtr = currentptr;
+    currentptr = currentptr->next;
+    if (currentptr == 0) {
+      prevPtr->next = newHandlers;
+      break;
+    }
   }
 
   return AT_OK;
@@ -644,3 +740,13 @@ endCmd:
   hat->rtos.mutexUnlock();
   return status;
 }
+
+
+int AT_ReadIntoBufferResp(AT_HandlerTypeDef *hat, uint16_t length)
+{
+  int readLen = hat->serial.read(&hat->bufferResp[hat->bufferRespLen], length-hat->bufferRespLen);
+  if (readLen <= 0) return 0;
+  hat->bufferRespLen += readLen;
+  return hat->bufferRespLen;
+}
+

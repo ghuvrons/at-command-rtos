@@ -30,6 +30,7 @@ typedef struct {
 
   // at process
   AT_EventHandler_t *handlers;
+  AT_PrefixHandler_t *prefixhandlers;
   AT_CmdResp_t currentCommand;
   const char *stringFlagStart;
   const char *stringFlagEnd;
@@ -48,6 +49,10 @@ void AT_Process(AT_HandlerTypeDef*);
 AT_Status_t AT_On(AT_HandlerTypeDef*, AT_Command_t, void *app,
                   uint8_t respNb, AT_Data_t *,
                   AT_EH_Callback_t);
+
+AT_Status_t AT_OnPrefix(AT_HandlerTypeDef*,
+                        const char *prefix,
+                        void (*cb)(AT_HandlerTypeDef *atPtr));
 
 AT_Status_t AT_ReadlineOn(AT_HandlerTypeDef*, AT_Command_t, void *app, AT_EH_CallbackReadline_t);
 
@@ -81,4 +86,6 @@ AT_Status_t AT_CommandWrite(AT_HandlerTypeDef*, AT_Command_t,
                             const uint8_t *data, uint16_t length,
                             uint8_t paramNb, AT_Data_t *params,
                             uint8_t respNb, AT_Data_t *resp);
+
+int AT_ReadIntoBufferResp(AT_HandlerTypeDef*, uint16_t length);
 #endif
