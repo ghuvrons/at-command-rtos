@@ -3,8 +3,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <utils/debugger.h>
 
+
+
+static int readIntoBufferResp(AT_HandlerTypeDef*, uint16_t length);
 
 AT_Status_t AT_Init(AT_HandlerTypeDef *hat, AT_Config_t *config)
 {
@@ -70,7 +72,7 @@ void AT_Process(AT_HandlerTypeDef *hat)
     if ((prefixHandlerPtr != 0 && hat->bufferRespLen < prefixHandlerPtr->prefixLen) ||
         (stringFlagStart != 0 && hat->bufferRespLen < stringFlagStartLen))
     {
-      if (AT_ReadIntoBufferResp(hat, 1) < 0) continue;
+      if (readIntoBufferResp(hat, 1) < 0) continue;
     }
 
     // Check stringFlagStart
@@ -131,7 +133,7 @@ void AT_Process(AT_HandlerTypeDef *hat)
 
     // search "\r\n"
     while (hat->bufferRespLen > 0 && *(hat->bufferResp+hat->bufferRespLen-1) == '\r') {
-      if (AT_ReadIntoBufferResp(hat, 1) < 0) continue;
+      if (readIntoBufferResp(hat, 1) < 0) continue;
     }
 
     // try to read one line
@@ -742,9 +744,9 @@ endCmd:
 }
 
 
-int AT_ReadIntoBufferResp(AT_HandlerTypeDef *hat, uint16_t length)
+static int readIntoBufferResp(AT_HandlerTypeDef *hat, uint16_t length)
 {
-  int readLen = hat->serial.read(&hat->bufferResp[hat->bufferRespLen], length-hat->bufferRespLen);
+  int readLen = hat->serial.read(&hat->bufferResp[hat->bufferRespLen], length);
   if (readLen <= 0) return 0;
   hat->bufferRespLen += readLen;
   return hat->bufferRespLen;

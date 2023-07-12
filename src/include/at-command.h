@@ -86,6 +86,4 @@ AT_Status_t AT_CommandWrite(AT_HandlerTypeDef*, AT_Command_t,
                             const uint8_t *data, uint16_t length,
                             uint8_t paramNb, AT_Data_t *params,
                             uint8_t respNb, AT_Data_t *resp);
-
-int AT_ReadIntoBufferResp(AT_HandlerTypeDef*, uint16_t length);
 #endif
