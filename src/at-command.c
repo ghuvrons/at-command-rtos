@@ -41,7 +41,7 @@ void AT_Process(AT_HandlerTypeDef *hat)
   uint8_t            respListSize;
   uint8_t            respNb;
   AT_Data_t          *respDataPtr;
-  AT_PrefixHandler_t *prefixHandlerPtr;
+  AT_PrefixHandler_t *prefixHandlerPtr = 0;
   const char         *stringFlagStart;
   uint8_t            stringFlagStartLen;
 
