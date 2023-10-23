@@ -14,6 +14,7 @@ typedef enum {
   AT_OK,
   AT_ERROR,
   AT_TIMEOUT,
+  AT_RESPONSE_TIMEOUT,
 } AT_Status_t;
 
 typedef enum {
