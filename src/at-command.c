@@ -433,7 +433,6 @@ AT_Status_t AT_ReadIntoBufferOn(AT_HandlerTypeDef *hat, AT_Command_t cmd, void *
 
 AT_Status_t AT_WaitStringFlag(AT_HandlerTypeDef *hat, const char *str, uint8_t len)
 {
-  AT_Status_t status = AT_OK;
   uint32_t events;
 
   hat->stringFlagStart = str;
