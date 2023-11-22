@@ -70,6 +70,10 @@ AT_Status_t AT_CommandWithTimeout(AT_HandlerTypeDef*, AT_Command_t,
                                   uint8_t paramNb, AT_Data_t *params,
                                   uint8_t respNb, AT_Data_t *resp, uint32_t timeout);
 
+AT_Status_t AT_TestWithTimeout(AT_HandlerTypeDef*, AT_Command_t,
+                               uint8_t respListSize, uint8_t respNb, AT_Data_t *resp,
+                               uint32_t timeout);
+
 AT_Status_t AT_Check(AT_HandlerTypeDef *hat, AT_Command_t cmd,
                      uint8_t respNb, AT_Data_t *resp);
 

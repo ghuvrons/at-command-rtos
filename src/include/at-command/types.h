@@ -26,6 +26,11 @@ typedef enum {
   AT_HEX,
 } AT_DataType_t;
 
+typedef enum {
+  AT_LIST_MULTIPLE_LINE,  // +cmd: resp<enter> +cmd: resp<enter> +cmd: resp<enter>
+  AT_LIST_ONE_LINE,       // +cmd: (resp),(resp),(resp),(resp)
+} AT_ListType_t;
+
 typedef const char* AT_Command_t;
 typedef struct {
   AT_DataType_t type;
@@ -43,6 +48,7 @@ typedef struct {
 typedef struct {
     uint8_t       cmdLen;
     AT_Command_t  cmd;
+    AT_ListType_t respListType;
     uint8_t       respListSize;
     uint8_t       respNb;
     AT_Data_t     *resp;

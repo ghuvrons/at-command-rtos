@@ -65,7 +65,7 @@ end:
   return writeLen;
 }
 
-const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
+const char *AT_ParseData(const char *respStr, AT_Data_t *data)
 {
   uint8_t isParsing   = 0;
   uint8_t isInStr     = 0;
@@ -98,6 +98,15 @@ const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
       break;
     }
 
+    else if (*respStr == ')' && !isInStr && !isInBracket) {
+      if (isBinary) {
+        if (isParsing && strOutput != 0 && outputSZ > 0)
+          *strOutput = 0;
+        strOutput = 0;
+      }
+      break;
+    }
+
     else if (*respStr == '\"') {
       if (isInStr) {
         if (isParsing && strOutput != 0 && outputSZ > 0)
@@ -116,41 +125,53 @@ const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
         isParsing = 1;
 
         if (isInStr) {
-          data->type = AT_STRING;
-          data->value.string = (const char*)data->ptr;
-          strOutput = data->ptr;
-          outputSZ = data->size;
+          if (data != 0) {
+            data->type = AT_STRING;
+            data->value.string = (const char*)data->ptr;
+            strOutput = data->ptr;
+            outputSZ  = data->size;
+          } else {
+            strOutput = 0;
+            outputSZ  = 0;
+          }
         }
         else {
-          if (data->ptr != 0 && (data->type == AT_STRING || data->type == AT_HEX)) {
+          if (data != 0 && data->ptr != 0 && (data->type == AT_STRING || data->type == AT_HEX)) {
             isBinary = 1;
             data->value.string = (const char*)data->ptr;
             strOutput = data->ptr;
             outputSZ = data->size;
           }
           else if ((*respStr >= '0' && *respStr <= '9') || *respStr == '-') {
-            if (data->type == AT_FLOAT) {
-              data->value.floatNumber = atoff(respStr);
-            }
-            else {
-              data->type = AT_NUMBER;
-              data->value.number = atoi(respStr);
+            if (data != 0) {
+              if (data->type == AT_FLOAT) {
+                data->value.floatNumber = atoff(respStr);
+              }
+              else {
+                data->type = AT_NUMBER;
+                data->value.number = atoi(respStr);
+              }
             }
           }
           else if (data->ptr != 0) {
-            data->type = AT_STRING;
             isBinary = 1;
-            data->value.string = (const char*)data->ptr;
-            strOutput = data->ptr;
-            outputSZ = data->size;
+            if (data != 0) {
+              data->type = AT_STRING;
+              data->value.string = (const char*)data->ptr;
+              strOutput = data->ptr;
+              outputSZ = data->size;
+            } else {
+              strOutput = 0;
+              outputSZ  = 0;
+            }
           }
         }
       }
 
-      if (*respStr == '(' && !isInStr) {
+      if (*respStr == '(' && !isInStr && !isInBracket) {
         isInBracket = 1;
       }
-      else if (*respStr == ')' && !isInStr) {
+      else if (*respStr == ')' && !isInStr && isInBracket) {
         isInBracket = 0;
       }
 
@@ -163,6 +184,41 @@ const char *AT_ParseResponse(const char *respStr, AT_Data_t *data)
       }
     }
 
+    respStr++;
+  }
+
+  return respStr;
+}
+
+const char *AT_ParseResponse(const char *respStr, uint8_t respNb, AT_Data_t *respDataPtr)
+{
+  while (respDataPtr && respNb--) {
+    if (respStr == 0) return 0;
+
+    respStr = AT_ParseData(respStr, respDataPtr);
+    if (respDataPtr) respDataPtr++;
+  }
+
+  return respStr;
+}
+
+
+const char *AT_ParseResponseList(const char *respStr, uint8_t respListSize, uint8_t respNb, AT_Data_t *respDataPtr)
+{
+  while (1) {
+    if (respStr == 0 || *respStr == 0) return 0;
+    else if (*respStr == '\r') {
+      return 0;
+    }
+    else if (*respStr == ',') {
+      respStr++;
+    }
+
+    if (*respStr == '(') {
+      respStr++;
+      respStr = AT_ParseResponse(respStr, respNb, respDataPtr);
+      if (respStr == 0 || *respStr != ')') continue;
+    }
     respStr++;
   }
 

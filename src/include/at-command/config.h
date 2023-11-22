@@ -6,7 +6,7 @@
 #endif
 
 #ifndef AT_BUF_RESP_SZ
-#define AT_BUF_RESP_SZ 256
+#define AT_BUF_RESP_SZ 1024
 #endif
 
 #endif
