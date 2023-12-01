@@ -32,6 +32,11 @@ AT_Status_t AT_Init(AT_HandlerTypeDef *hat, AT_Config_t *config)
   return AT_OK;
 }
 
+AT_Status_t AT_Start(AT_HandlerTypeDef *hat)
+{
+  return hat->rtos.eventSet(AT_EVT_START);
+}
+
 void AT_Process(AT_HandlerTypeDef *hat)
 {
   uint16_t           readLen;
@@ -43,8 +48,14 @@ void AT_Process(AT_HandlerTypeDef *hat)
   AT_PrefixHandler_t *prefixHandlerPtr = 0;
   const char         *stringFlagStart;
   uint8_t            stringFlagStartLen;
+  uint32_t           events;
 
-  startProcess:
+waitStarted:
+  if (hat->rtos.eventWait(AT_EVT_START, &events, 2000) != AT_OK)
+  {
+    goto waitStarted;
+  }
+
   while (1) {
     if (hat->bufferRespLen == 0) {
       prefixHandlerPtr  = hat->prefixhandlers;
@@ -95,7 +106,7 @@ void AT_Process(AT_HandlerTypeDef *hat)
           {
             prefixHandlerPtr->callback(hat);
             hat->bufferRespLen = 0;
-            goto startProcess;
+            continue;
           }
           prefixHandlerPtr = prefixHandlerPtr->next;
         }

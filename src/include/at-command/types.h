@@ -4,11 +4,13 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#define AT_EVT_OK               0x01U
-#define AT_EVT_ERROR            0x02U
-#define AT_EVT_CMD_RESP         0x04U
-#define AT_EVT_BYTES_FLAG_START 0x08U
-#define AT_EVT_BYTES_FLAG_END   0x10U
+#define AT_EVT_START            0x01U
+#define AT_EVT_STOP             0x02U
+#define AT_EVT_OK               0x08U
+#define AT_EVT_ERROR            0x10U
+#define AT_EVT_CMD_RESP         0x20U
+#define AT_EVT_BYTES_FLAG_START 0x40U
+#define AT_EVT_BYTES_FLAG_END   0x80U
 
 typedef enum {
   AT_OK,

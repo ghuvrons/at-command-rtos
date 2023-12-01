@@ -44,6 +44,7 @@ typedef struct {
 } AT_HandlerTypeDef;
 
 AT_Status_t AT_Init(AT_HandlerTypeDef*, AT_Config_t*);
+AT_Status_t AT_Start(AT_HandlerTypeDef*);
 void AT_Process(AT_HandlerTypeDef*);
 
 AT_Status_t AT_On(AT_HandlerTypeDef*, AT_Command_t, void *app,
