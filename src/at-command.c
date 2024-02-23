@@ -208,6 +208,7 @@ waitStarted:
         hat->currentCommand.respListSize--;
 
         if (hat->currentCommand.respListSize > 0) {
+          respDataPtr += respNb;
           hat->currentCommand.resp = respDataPtr;
         } else {
           hat->rtos.eventSet(AT_EVT_CMD_RESP);
