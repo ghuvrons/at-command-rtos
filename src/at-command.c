@@ -495,9 +495,6 @@ AT_Status_t AT_CommandWithTimeout(AT_HandlerTypeDef *hat, AT_Command_t cmd,
 
   writecmdLen = AT_WriteCommand(hat->bufferCmd, AT_BUF_CMD_SZ, cmd, paramNb, params);
 
-  if (strncmp(cmd, "+COPS", 5) == 0) {
-    status = AT_ERROR;
-  }
   if (respNb > 0) {
     hat->currentCommand.cmdLen        = strlen(cmd);
     hat->currentCommand.cmd           = cmd;
@@ -508,9 +505,6 @@ AT_Status_t AT_CommandWithTimeout(AT_HandlerTypeDef *hat, AT_Command_t cmd,
 
   hat->serial.write(hat->bufferCmd, writecmdLen);
 
-  if (strncmp(cmd, "+COPS", 5) == 0) {
-    status = AT_ERROR;
-  }
   // wait response
   status = hat->rtos.eventWait(AT_EVT_OK|AT_EVT_ERROR, &events, timeout);
   if (status == AT_OK){
