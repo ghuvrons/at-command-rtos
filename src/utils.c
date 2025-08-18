@@ -202,6 +202,41 @@ const char *AT_ParseResponse(const char *respStr, uint8_t respNb, AT_Data_t *res
   return respStr;
 }
 
+const char *AT_ParseSingleResponse(const char *respStr, AT_Data_t *data)
+{
+  uint8_t *strOutput  = 0;
+  size_t outputSZ     = 0;
+
+  if (data == 0 || data->type != AT_STRING || data->ptr == 0)
+  {
+    return 0;
+  }
+
+  strOutput = data->ptr;
+  outputSZ = data->size;
+
+  while (1) {
+    if (*respStr == 0) return 0;
+    else if (*respStr == '\r') {
+      if (outputSZ != 0 && strOutput != 0) *strOutput = 0; // EOF
+      break;
+    }
+
+    else if (data != 0) {
+      if (outputSZ != 0 && strOutput != 0) {
+        // [TODO]: is type is hex, read 2 char then convert to uint8_t
+        //         then save to strOutput
+        *strOutput = (char) *respStr;
+        strOutput++;
+        outputSZ--;
+      }
+    }
+
+    respStr++;
+  }
+
+  return respStr;
+}
 
 const char *AT_ParseResponseList(const char *respStr, uint8_t respListSize, uint8_t respNb, AT_Data_t *respDataPtr)
 {

@@ -201,7 +201,11 @@ waitStarted:
             AT_ParseResponseList(respText, hat->currentCommand.respListSize, respNb, respDataPtr);
             hat->currentCommand.respListSize = 1;
           } else {
-            AT_ParseResponse(respText, respNb, respDataPtr);
+            if (hat->currentCommand.isSingleResp) {
+              AT_ParseSingleResponse(respText, respDataPtr);
+            } else {
+              AT_ParseResponse(respText, respNb, respDataPtr);
+            }
           }
         }
 
@@ -517,6 +521,71 @@ AT_Status_t AT_CommandWithTimeout(AT_HandlerTypeDef *hat, AT_Command_t cmd,
   }
 
   if (respNb > 0) memset(&hat->currentCommand, 0, sizeof(hat->currentCommand));
+  hat->rtos.mutexUnlock();
+  return status;
+}
+
+/**
+ * example (without param):
+ * > AT+<cmd>
+ * < OK
+ *
+ * example (with param):
+ * > AT+<cmd>: param, param
+ * < +<cmd>: resp, resp
+ * < OK
+ *
+ * @param hat
+ * @param cmd
+ * @param paramNb
+ * @param params
+ * @param respNb
+ * @param resp
+ * @return AT_Status_t
+ */
+AT_Status_t AT_CommandSingleResp(AT_HandlerTypeDef *hat, AT_Command_t cmd,
+                                 uint8_t paramNb, AT_Data_t *params, AT_Data_t *resp)
+{
+  return AT_CommandSingleRespWithTimeout(hat, cmd, paramNb, params, resp,
+                                         hat->config.commandTimeout);
+}
+
+
+AT_Status_t AT_CommandSingleRespWithTimeout(AT_HandlerTypeDef *hat, AT_Command_t cmd,
+                                            uint8_t paramNb, AT_Data_t *params, AT_Data_t *resp, uint32_t timeout)
+{
+  AT_Status_t status;
+  uint16_t writecmdLen;
+  uint32_t events;
+
+  status = hat->rtos.mutexLock(timeout);
+  if (status != AT_OK) return status;
+
+  hat->rtos.eventClear(AT_EVT_OK|AT_EVT_ERROR);
+
+  writecmdLen = AT_WriteCommand(hat->bufferCmd, AT_BUF_CMD_SZ, cmd, paramNb, params);
+
+  hat->currentCommand.cmdLen        = strlen(cmd);
+  hat->currentCommand.cmd           = cmd;
+  hat->currentCommand.isSingleResp  = 1;
+  hat->currentCommand.respListSize  = 1;
+  hat->currentCommand.respNb        = 1;
+  hat->currentCommand.resp          = resp;
+
+  hat->serial.write(hat->bufferCmd, writecmdLen);
+
+  // wait response
+  status = hat->rtos.eventWait(AT_EVT_OK|AT_EVT_ERROR, &events, timeout);
+  if (status == AT_OK){
+    if (events & AT_EVT_ERROR) {
+      status = AT_ERROR;
+    }
+  }
+  else if (status == AT_TIMEOUT) {
+    status = AT_RESPONSE_TIMEOUT;
+  }
+
+  memset(&hat->currentCommand, 0, sizeof(hat->currentCommand));
   hat->rtos.mutexUnlock();
   return status;
 }

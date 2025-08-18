@@ -52,6 +52,7 @@ typedef struct {
     AT_Command_t  cmd;
     AT_ListType_t respListType;
     uint8_t       respListSize;
+    uint8_t       isSingleResp;
     uint8_t       respNb;
     AT_Data_t     *resp;
     uint8_t       error;
