@@ -202,14 +202,16 @@ waitStarted:
             hat->currentCommand.respListSize = 1;
           } else {
             if (hat->currentCommand.isSingleResp) {
-              AT_ParseSingleResponse(respText, respDataPtr);
+              AT_ParseAllResponse(respText, respDataPtr);
             } else {
               AT_ParseResponse(respText, respNb, respDataPtr);
             }
           }
         }
 
-        hat->currentCommand.respListSize--;
+        if (hat->currentCommand.respListSize > 0) {
+          hat->currentCommand.respListSize--;
+        }
 
         if (hat->currentCommand.respListSize > 0) {
           respDataPtr += respNb;
@@ -544,15 +546,18 @@ AT_Status_t AT_CommandWithTimeout(AT_HandlerTypeDef *hat, AT_Command_t cmd,
  * @return AT_Status_t
  */
 AT_Status_t AT_CommandSingleResp(AT_HandlerTypeDef *hat, AT_Command_t cmd,
-                                 uint8_t paramNb, AT_Data_t *params, AT_Data_t *resp)
+                                 uint8_t paramNb, AT_Data_t *params,
+                                 uint8_t respListSize, AT_Data_t *resp)
 {
-  return AT_CommandSingleRespWithTimeout(hat, cmd, paramNb, params, resp,
+  return AT_CommandSingleRespWithTimeout(hat, cmd, paramNb, params, respListSize, resp,
                                          hat->config.commandTimeout);
 }
 
 
 AT_Status_t AT_CommandSingleRespWithTimeout(AT_HandlerTypeDef *hat, AT_Command_t cmd,
-                                            uint8_t paramNb, AT_Data_t *params, AT_Data_t *resp, uint32_t timeout)
+                                            uint8_t paramNb, AT_Data_t *params,
+                                            uint8_t respListSize, AT_Data_t *resp,
+                                            uint32_t timeout)
 {
   AT_Status_t status;
   uint16_t writecmdLen;
@@ -565,12 +570,14 @@ AT_Status_t AT_CommandSingleRespWithTimeout(AT_HandlerTypeDef *hat, AT_Command_t
 
   writecmdLen = AT_WriteCommand(hat->bufferCmd, AT_BUF_CMD_SZ, cmd, paramNb, params);
 
-  hat->currentCommand.cmdLen        = strlen(cmd);
-  hat->currentCommand.cmd           = cmd;
-  hat->currentCommand.isSingleResp  = 1;
-  hat->currentCommand.respListSize  = 1;
-  hat->currentCommand.respNb        = 1;
-  hat->currentCommand.resp          = resp;
+  if (resp != 0) {
+    hat->currentCommand.cmdLen        = strlen(cmd);
+    hat->currentCommand.cmd           = cmd;
+    hat->currentCommand.isSingleResp  = 1;
+    hat->currentCommand.respListSize  = respListSize;
+    hat->currentCommand.respNb        = 1;
+    hat->currentCommand.resp          = resp;
+  }
 
   hat->serial.write(hat->bufferCmd, writecmdLen);
 
@@ -585,7 +592,10 @@ AT_Status_t AT_CommandSingleRespWithTimeout(AT_HandlerTypeDef *hat, AT_Command_t
     status = AT_RESPONSE_TIMEOUT;
   }
 
-  memset(&hat->currentCommand, 0, sizeof(hat->currentCommand));
+  if (resp != 0) {
+    memset(&hat->currentCommand, 0, sizeof(hat->currentCommand));
+  }
+
   hat->rtos.mutexUnlock();
   return status;
 }

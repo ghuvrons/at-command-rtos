@@ -202,7 +202,7 @@ const char *AT_ParseResponse(const char *respStr, uint8_t respNb, AT_Data_t *res
   return respStr;
 }
 
-const char *AT_ParseSingleResponse(const char *respStr, AT_Data_t *data)
+const char *AT_ParseAllResponse(const char *respStr, AT_Data_t *data)
 {
   uint8_t *strOutput  = 0;
   size_t outputSZ     = 0;
